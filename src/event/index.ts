@@ -3,7 +3,7 @@ import { Request } from "express";
 
 // Assuming utils and decrypt modules are implemented with TypeScript support
 import AESCipher from "../decrypt";
-import { UnionEventContent, UnionEventHandler } from "./types";
+import { Content, EventHandler, UrlVerificationContent } from "./types";
 
 class InvalidEventException extends Error {
   constructor(message: string) {
@@ -18,7 +18,7 @@ interface EventManagerConstructParams {
 }
 
 class EventManager {
-  private eventCallbackMap: Record<string, UnionEventHandler> = {};
+  private eventCallbackMap: Record<string, EventHandler> = {};
   private token: string = "";
   private encryptKey: string = "";
 
@@ -27,7 +27,7 @@ class EventManager {
     this.encryptKey = encryptKey;
   }
 
-  decryptData(data: UnionEventContent): UnionEventContent {
+  decryptData(data: Content): Content {
     const { encrypt } = data;
     if (!this.encryptKey || !encrypt) {
       return data;
@@ -57,14 +57,17 @@ class EventManager {
     }
   }
 
-  register(eventType: string, handler: UnionEventHandler): void {
+  register(eventType: string, handler: EventHandler): void {
     this.eventCallbackMap[eventType] = handler;
   }
 
-  getEventHandler(req: Request): UnionEventHandler {
+  getEventHandler(req: Request): EventHandler {
     const eventData = this.decryptData(req.body);
     console.log({ eventData, reqBody: req.body });
-    const type = eventData.type || eventData.header.event_type;
+    const type =
+      (eventData as UrlVerificationContent).type ||
+      eventData?.header?.event_type ||
+      "";
     const eventHandler = this.eventCallbackMap[type];
     if (!eventHandler) {
       throw new InvalidEventException("unknown event: " + type);
@@ -72,7 +75,7 @@ class EventManager {
     return eventHandler;
   }
 
-  getEvent(req: Request): UnionEventContent {
+  getEvent(req: Request): Content {
     const eventData = this.decryptData(req.body);
     return eventData;
   }

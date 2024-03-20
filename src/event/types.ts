@@ -1,23 +1,23 @@
 export interface EventHeader {
-  token: string;
+  app_id: string;
+  create_time: string;
+  event_id: string;
   event_type: string;
+  tenant_key: string;
+  token: string;
 }
 
 export interface Content {
   encrypt?: string;
-  header: EventHeader;
-  type: string;
-  schema: string;
-}
-
-export interface Event<T> {
-  header: EventHeader;
-  content: T;
+  event?: Record<string, unknown>;
+  header?: EventHeader;
+  schema?: string;
 }
 
 export interface UrlVerificationContent extends Content {
-  token: string;
   challenge: string;
+  type: string;
+  token: string;
 }
 
 export interface MessageReceiveContent extends Content {
@@ -34,14 +34,21 @@ export interface MessageReceiveContent extends Content {
   };
 }
 
-export type EventHandler<T> = (event: T) => Promise<Record<string, unknown>>;
+export interface MessageReadContent extends Content {
+  event: {
+    message_id_list: string[];
+    reader: {
+      read_time: string;
+      reader_id: {
+        open_id: string;
+        union_id: string;
+        user_id: string;
+      };
+      tenant_key: string;
+    };
+  };
+}
 
-export type UnionEventContent = MessageReceiveContent | UrlVerificationContent;
-
-export type UnionEvent =
-  | Event<MessageReceiveContent>
-  | Event<UrlVerificationContent>;
-
-export type UnionEventHandler =
-  | EventHandler<MessageReceiveContent>
-  | EventHandler<UrlVerificationContent>;
+export type EventHandler = (
+  content: Content,
+) => Promise<Record<string, unknown>>;

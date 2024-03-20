@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import {
   UrlVerificationContent,
   MessageReceiveContent,
-  UnionEvent,
+  Content,
 } from "./event/types";
 import { MessageApiClient } from "./api";
 import { EventManager } from "./event";
@@ -33,29 +33,33 @@ const eventManager = new EventManager({
 const messageApiClient = new MessageApiClient(APP_ID, APP_SECRET, LARK_HOST);
 
 // Register event handlers
-eventManager.register(
-  "url_verification",
-  async ({ challenge, token }: UrlVerificationContent) => {
-    if (token !== VERIFICATION_TOKEN) {
-      throw new Error("VERIFICATION_TOKEN is invalid");
-    }
-    return { challenge };
-  },
-);
+eventManager.register("url_verification", async (content: Content) => {
+  const { challenge, token } = content as UrlVerificationContent;
+  if (token !== VERIFICATION_TOKEN) {
+    throw new Error("VERIFICATION_TOKEN is invalid");
+  }
+  return { challenge };
+});
+
+eventManager.register("im.message.receive_v1", async (content: Content) => {
+  const { event } = content as MessageReceiveContent;
+  const senderId = event.sender.sender_id;
+  const message = event.message;
+  if (message.message_type !== "text") {
+    console.warn("Other types of messages have not been processed yet");
+    return {};
+  }
+  const openId = senderId.open_id;
+  const textContent = message.content;
+  await messageApiClient.sendTextWithOpenId(openId, textContent);
+  return {};
+});
 
 eventManager.register(
-  "im.message.receive_v1",
-  async (reqData: MessageReceiveContent) => {
-    const { event } = reqData;
-    const senderId = event.sender.sender_id;
-    const message = event.message;
-    if (message.message_type !== "text") {
-      console.warn("Other types of messages have not been processed yet");
-      return {};
-    }
-    const openId = senderId.open_id;
-    const textContent = message.content;
-    await messageApiClient.sendTextWithOpenId(openId, textContent);
+  "im.message.message_read_v1",
+  async (content: Content) => {
+    //NOOP
+    console.log(JSON.stringify(content));
     return {};
   },
 );
@@ -65,8 +69,7 @@ app.post("/", async (req: Request, res: Response) => {
   try {
     const eventHandler = eventManager.getEventHandler(req);
     const event = eventManager.getEvent(req);
-    // @ts-expect-error: generic shenanigans
-    const response = await eventHandler(event as UnionEvent);
+    const response = await eventHandler(event as Content);
     res.status(200).json(response);
   } catch (error) {
     console.error(error);
